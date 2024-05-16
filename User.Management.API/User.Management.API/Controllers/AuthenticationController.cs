@@ -84,6 +84,8 @@ namespace User.Management.API.Controllers
 
         [HttpGet("ConfirmEmail")]
         public async Task<IActionResult> ConfirmEmail(string token, string email)
+
+            // Comment
         {
             try
             {
