@@ -41,7 +41,7 @@ namespace User.Management.API.Controllers
             {
                 Email = registerUser.Email,
                 SecurityStamp = Guid.NewGuid().ToString(),
-                UserName = registerUser.UserName,   
+                UserName = registerUser.Username,   
             };
 
             // Check if roles exists
@@ -50,7 +50,7 @@ namespace User.Management.API.Controllers
             if (roleExist)
             {
 
-                var result = await _userManager.CreateAsync(user, registerUser.Password);
+                var result = await _userManager.CreateAsync(user, registerUser.Password!);
 
                 // If creation fails
                 if (!result.Succeeded)
@@ -62,8 +62,14 @@ namespace User.Management.API.Controllers
                 // Assign a role to the user
                 await _userManager.AddToRoleAsync(user,role);
 
-                return StatusCode(StatusCodes.Status201Created,
-                       new Response { Status = "Success", Message = "User created successfully" });
+                // Generate Token to verify the email
+                var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                var confirmationLink = Url.Action(nameof(ConfirmEmail), "Authentication", new { token, email = user.Email }, Request.Scheme);
+                var message = new Message(new string[] { user.Email! }, "Confirmation email link", confirmationLink!);
+                _emailService.SendEmail(message);
+
+                return StatusCode(StatusCodes.Status200OK,
+                    new Response { Status = "Success", Message = $"User created & Email Sent to {user.Email} SuccessFully" });
 
             }
             else
@@ -76,17 +82,36 @@ namespace User.Management.API.Controllers
 
         }
 
-        [HttpGet]
-        public IActionResult TestEmail()
+        [HttpGet("ConfirmEmail")]
+        public async Task<IActionResult> ConfirmEmail(string token, string email)
         {
-            var message = new Message(new string[] { "wilsonnjoroge932@gmail.com" }, "Test", "<h1>Its Wilson Here</h1>");
+            try
+            {
 
-            _emailService.SendEmail(message);
+                var user = await _userManager.FindByEmailAsync(email);
+                if (user != null)
+                {
+                    var result = await _userManager.ConfirmEmailAsync(user, token);
+                    if (result.Succeeded)
+                    {
+                        return StatusCode(StatusCodes.Status200OK,
+                                    new Response { Status = "Success", Message = "Email Verified Successfully" });
+                    }
 
+                }
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                       new Response { Status = "Error", Message = "User with that email does not exist" });
 
-            return  StatusCode(StatusCodes.Status200OK,
-                    new Response { Status = "Success", Message = "Email sent successfully" });
+            }
+            catch
+            {
+                throw;
+            }
+
+            
+
         }
+       
 
     }
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using User.Management.API.Models;
 
@@ -11,9 +12,11 @@ using User.Management.API.Models;
 namespace User.Management.API.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20240516081217_Initial")]
+    partial class Initial
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -51,21 +54,21 @@ namespace User.Management.API.Migrations
                     b.HasData(
                         new
                         {
-                            Id = "c803a2ba-9be1-4ee2-ae23-1014eb014af8",
+                            Id = "972ced24-2e49-43ae-bad7-e13806108de3",
                             ConcurrencyStamp = "1",
                             Name = "Admin",
                             NormalizedName = "Admin"
                         },
                         new
                         {
-                            Id = "2fcb9512-6ac3-4560-98ab-3ee1cddf50dc",
+                            Id = "908919ac-de66-4712-9a9e-098f0b8c191d",
                             ConcurrencyStamp = "2",
                             Name = "User",
                             NormalizedName = "User"
                         },
                         new
                         {
-                            Id = "c4da8331-085a-4cef-afe5-e8a287fa77e5",
+                            Id = "3bb77e4e-081a-4969-96d0-5a1b72d5f115",
                             ConcurrencyStamp = "3",
                             Name = "HR",
                             NormalizedName = "HR"
