@@ -1,8 +1,9 @@
 ﻿
 
+
 namespace User.Management.Service.Model
 {
-    public class EmailConfiguration
+    public class EmailConfiguration 
     {
         public string From { get; set; } = null!;
         public string SmtpServer { get; set; } = null!;
