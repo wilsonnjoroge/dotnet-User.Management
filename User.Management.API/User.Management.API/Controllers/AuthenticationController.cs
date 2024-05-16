@@ -1,4 +1,5 @@
 ﻿
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,7 @@ using User.Management.Service.Services;
 
 namespace User.Management.API.Controllers
 {
+    [AllowAnonymous]
     [Route("api/[controller]")]
     [ApiController]
     public class AuthenticationController : ControllerBase
@@ -30,6 +32,7 @@ namespace User.Management.API.Controllers
             _emailService = emailService;
         }
 
+        
         [HttpPost]
         public async Task<IActionResult> Register([FromBody] RegisterUser registerUser, string role)
         {
@@ -87,6 +90,7 @@ namespace User.Management.API.Controllers
 
         }
 
+        
         [HttpGet("ConfirmEmail")]
         public async Task<IActionResult> ConfirmEmail(string token, string email)
 
@@ -119,7 +123,6 @@ namespace User.Management.API.Controllers
 
         }
         
-
         [HttpPost("/Login")]
         public async Task<IActionResult> Login([FromBody] LoginModel loginModel)
         {
