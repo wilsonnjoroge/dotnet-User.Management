@@ -24,12 +24,14 @@ namespace User.Management.API.Controllers
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
-        public AuthenticationController(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService)
+        private readonly SignInManager<IdentityUser> _signInManager;
+        public AuthenticationController(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _configuration = configuration;
             _emailService = emailService;
+            _signInManager = signInManager;
         }
 
         
@@ -49,7 +51,8 @@ namespace User.Management.API.Controllers
             {
                 Email = registerUser.Email,
                 SecurityStamp = Guid.NewGuid().ToString(),
-                UserName = registerUser.Username,   
+                UserName = registerUser.Username,
+                TwoFactorEnabled = true
             };
 
             // Check if roles exists
@@ -122,45 +125,116 @@ namespace User.Management.API.Controllers
             
 
         }
-        
+
         [HttpPost("/Login")]
         public async Task<IActionResult> Login([FromBody] LoginModel loginModel)
         {
             // Check if user exists
-            var user = await _userManager.FindByNameAsync(loginModel.Username!);
-
-            // Check if password is valid
-            if (user != null && await _userManager.CheckPasswordAsync(user, loginModel.Password!))
-            { 
-                // Create a claim list
-                var authClaims = new List<Claim>
-                {
-                    new Claim(ClaimTypes.Name, loginModel.Username),
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-                };
-
-                // Add roles to the claims list
-                var userRoles = await _userManager.GetRolesAsync(user);
-                foreach (var role in userRoles)
-                {
-                    authClaims.Add(new Claim(ClaimTypes.Role, role));
-                }
-
-                // Generate Token with claims
-                var jwtToken = GetToken(authClaims);
-
-                // Return the token
-                return Ok(new
-                {
-                    token = new JwtSecurityTokenHandler().WriteToken(jwtToken),
-                    expiration = jwtToken.ValidTo
-                });
-
+            var user = await _userManager.FindByNameAsync(loginModel.Username);
+            if (user == null)
+            {
+                return Unauthorized();
             }
 
-            return Unauthorized();
+            // Check if password is valid
+            if (!await _userManager.CheckPasswordAsync(user, loginModel.Password))
+            {
+                return Unauthorized();
+            }
 
+            // Sign out any existing sessions
+            await _signInManager.SignOutAsync();
+
+            // Check if two-factor authentication is enabled
+            if (user.TwoFactorEnabled)
+            {
+                // Sign in user with password, but 2FA is still required
+                await _signInManager.PasswordSignInAsync(user, loginModel.Password, false, true);
+
+                // Generate a 2FA token and send via email
+                var token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email");
+                var message = new Message(new string[] { user.Email! }, "2-Factor-Authentication OTP", token);
+                _emailService.SendEmail(message);
+
+                return StatusCode(StatusCodes.Status200OK, new Response { Status = "Success", Message = $"We have sent an OTP to your email {user.Email}" });
+            }
+
+            // Create a claim list
+            var authClaims = new List<Claim>
+            {
+                new Claim(ClaimTypes.Name, loginModel.Username),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            };
+
+            // Add roles to the claims list
+            var userRoles = await _userManager.GetRolesAsync(user);
+            foreach (var role in userRoles)
+            {
+                authClaims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
+            // Generate the JWT token with claims
+            var jwtToken = GetToken(authClaims);
+
+            // Return the token
+            return Ok(new
+            {
+                token = new JwtSecurityTokenHandler().WriteToken(jwtToken),
+                expiration = jwtToken.ValidTo
+            });
         }
+
+
+        [HttpPost("/Login-2-Factor-Authentication")]
+        public async Task<IActionResult> LoginWith2FA([FromBody] Login2FAModel model)
+        {
+            var user = await _userManager.FindByNameAsync(model.Username);
+            if (user == null)
+            {
+                return StatusCode(StatusCodes.Status404NotFound,
+                    new Response { Status = "Error", Message = "User not found" });
+            }
+
+            var signInResult = await _signInManager.TwoFactorSignInAsync("Email", model.Code, false, false);
+
+            if (!signInResult.Succeeded)
+            {
+                if (signInResult.IsLockedOut)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden,
+                        new Response { Status = "Error", Message = "User is locked out" });
+                }
+
+                return StatusCode(StatusCodes.Status400BadRequest,
+                    new Response { Status = "Error", Message = "Invalid code" });
+            }
+
+            // Create a claim list
+            var authClaims = new List<Claim>
+            {
+                new Claim(ClaimTypes.Name, user.UserName),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            };
+
+            // Add roles to the claims list
+            var userRoles = await _userManager.GetRolesAsync(user);
+            foreach (var role in userRoles)
+            {
+                authClaims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
+            // Generate Token with claims
+            var jwtToken = GetToken(authClaims);
+
+            // Return the token
+            return Ok(new
+            {
+                token = new JwtSecurityTokenHandler().WriteToken(jwtToken),
+                expiration = jwtToken.ValidTo
+            });
+        }
+
+
 
         private JwtSecurityToken GetToken(List<Claim> authClaims)
         {
