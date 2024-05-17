@@ -16,6 +16,7 @@ using User.Management.Service.Models.Authentication.Login;
 using User.Management.Service.Models.Authentication.PasswordManagement;
 using User.Management.Service.Models.Authentication.SignUp;
 using User.Management.Service.Services;
+using System.CodeDom.Compiler;
 
 namespace User.Management.API.Controllers
 {
@@ -44,17 +45,29 @@ namespace User.Management.API.Controllers
 
         
         [HttpPost]
-        public async Task<IActionResult> Register([FromBody] RegisterUser registerUser, string role)
+        public async Task<IActionResult> Register([FromBody] RegisterUser registerUser)
         {
-            var token = await _user.CreateUserWithTokenAsync(registerUser);
 
+            // Generate a token for email verification
+            var tokenResponse = await _user.CreateUserWithTokenAsync(registerUser);
 
-            var confirmationLink = Url.Action(nameof(ConfirmEmail), "Authentication", new { token, email = registerUser.Email }, Request.Scheme);
-            var message = new Message(new string[] { registerUser.Email! }, "Email Confirmation link", confirmationLink!);
-            _emailService.SendEmail(message);
+            if (tokenResponse.IsSuccess)
+            {
+                // Assign role
+                await _user.AssignRoleToUserAsync(registerUser.Roles, tokenResponse.Response.User);
 
-            return StatusCode(StatusCodes.Status200OK, 
-                    new Response { Status = "Success", Message = $"Confirmation email sent successfully to {registerUser.Email}" });
+                var confirmationLink = Url.Action(nameof(ConfirmEmail), "Authentication", new { tokenResponse.Response.Token, email = registerUser.Email }, Request.Scheme);
+                var message = new Message(new string[] { registerUser.Email! }, "Email Confirmation link", confirmationLink!);
+                _emailService.SendEmail(message);
+
+                return StatusCode(StatusCodes.Status200OK,
+                        new Response { Status = "Success", Message = $"Confirmation email sent successfully to {registerUser.Email}" });
+
+            }
+
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                       new Response { Message = tokenResponse.Message, IsSuccess = false });
+
 
         }
 
