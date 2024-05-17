@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace User.Management.API.Models.Authentication.PasswordManagement
+namespace User.Management.Service.Models.Authentication.PasswordManagement
 {
     public class ResetPassword
     {
