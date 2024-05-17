@@ -9,6 +9,7 @@ using System.Security.Claims;
 using System.Text;
 using User.Management.API.Models;
 using User.Management.API.Models.Authentication.Login;
+using User.Management.API.Models.Authentication.PasswordManagement;
 using User.Management.API.Models.Authentication.SignUp;
 using User.Management.Service.Model;
 using User.Management.Service.Services;
@@ -126,7 +127,7 @@ namespace User.Management.API.Controllers
 
         }
 
-        [HttpPost("/Login")]
+        [HttpPost("Login")]
         public async Task<IActionResult> Login([FromBody] LoginModel loginModel)
         {
             // Check if user exists
@@ -185,7 +186,7 @@ namespace User.Management.API.Controllers
         }
 
 
-        [HttpPost("/Login-2-Factor-Authentication")]
+        [HttpPost("Login-2-Factor-Authentication")]
         public async Task<IActionResult> LoginWith2FA([FromBody] Login2FAModel model)
         {
             var user = await _userManager.FindByNameAsync(model.Username);
@@ -233,6 +234,82 @@ namespace User.Management.API.Controllers
                 expiration = jwtToken.ValidTo
             });
         }
+
+
+        [HttpPost("forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([FromBody] string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+
+            //Check if user if registered in the DB
+            if(user == null)
+            {
+                return StatusCode(StatusCodes.Status404NotFound,
+                    new Response { Status = "Error", Message = "User Not Found!" });
+            }
+
+            if(user != null)
+            {
+                var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                var forgotPasswordLink = Url.Action(nameof(ResetPassword), "Authentication", new { token, email = user.Email }, Request.Scheme);
+                var message = new Message(new string[] { user.Email! }, "Forgot Password Link", forgotPasswordLink);
+                _emailService.SendEmail(message);
+
+                return StatusCode(StatusCodes.Status200OK,
+                        new Response { Status = "Success", Message = $"Password reset link has been sent to Email {user.Email} Please check your email" });
+            }
+
+            return StatusCode(StatusCodes.Status400BadRequest,
+                        new Response { Status = "Error", Message = "Could not send link to the email, Please try again" });
+
+        }
+
+
+        [HttpGet("reset-password")]
+        public async Task<IActionResult> ResetPassword(string token, string email)
+        {
+            var model = new ResetPassword { Email = email, Token = token };
+
+            return Ok(new { model });
+        }
+
+
+
+        [HttpPost("reset-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPassword resetPassword)
+        {
+            var user = await _userManager.FindByEmailAsync(resetPassword.Email);
+
+            // Check if user is registered in the DB
+            if (user != null)
+            {
+                // Reset password
+                var resetPassResult = await _userManager.ResetPasswordAsync(user, resetPassword.Token, resetPassword.Password);
+
+                // If not successful, log the error, else return ok
+                if (!resetPassResult.Succeeded)
+                {
+                    // log the error
+                    foreach (var error in resetPassResult.Errors)
+                    {
+                        ModelState.AddModelError(error.Code, error.Description);
+                    }
+
+                    return BadRequest(ModelState); // Return bad request with error details
+                }
+
+                // If successful, return ok
+                return StatusCode(StatusCodes.Status200OK,
+                            new Response { Status = "Success", Message = $"Password has been reset successfully for {user.Email}." });
+            }
+
+            return StatusCode(StatusCodes.Status404NotFound,
+                        new Response { Status = "Error", Message = "User not found!" });
+        }
+
+
 
 
 
