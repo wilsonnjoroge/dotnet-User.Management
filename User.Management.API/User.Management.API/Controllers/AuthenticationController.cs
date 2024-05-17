@@ -107,35 +107,38 @@ namespace User.Management.API.Controllers
         [HttpPost("Login")]
         public async Task<IActionResult> Login([FromBody] LoginModel loginModel)
         {
-            // Check if user exists
-            var user = await _userManager.FindByNameAsync(loginModel.Username);
-            if (user == null)
+            // Call the method to get OTP by login
+            var loginOtpResponse = await _user.GetOtpByLoginAsync(loginModel);
+
+            if (loginOtpResponse == null || !loginOtpResponse.IsSuccess)
             {
-                return Unauthorized();
+                // Handle the case where response is null or not successful
+                // ? -> if response is null, ?? -> Automatically assigns code 500 and ? -> if message is null, ?? -> assigns message to "An error occurred." 
+                return StatusCode(loginOtpResponse?.StatusCode ?? 500, 
+                        loginOtpResponse?.Message ?? "An error occurred.");
+            }
+
+            // Check if user exists
+            var user = loginOtpResponse.Response.User;
+
+            if (user.TwoFactorEnabled)
+            {
+                var token = loginOtpResponse.Response.Token;
+
+                var message = new Message(new string[] { user.Email! }, "2-Factor-Authentication Email", token);
+                _emailService.SendEmail(message);
+
+                return StatusCode(StatusCodes.Status200OK,
+                        new Response { IsSuccess = loginOtpResponse.IsSuccess, Status = "Success", Message = $"A 2-Factor-Authentication OTP has been sent to your email {user.Email}" });
             }
 
             // Check if password is valid
-            if (!await _userManager.CheckPasswordAsync(user, loginModel.Password))
+            var validPassword = await _userManager.CheckPasswordAsync(user, loginModel.Password);
+            if (!validPassword)
             {
-                return Unauthorized();
+                return Unauthorized("Wrong Password!!");
             }
 
-            // Sign out any existing sessions
-            await _signInManager.SignOutAsync();
-
-            // Check if two-factor authentication is enabled
-            if (user.TwoFactorEnabled)
-            {
-                // Sign in user with password, but 2FA is still required
-                await _signInManager.PasswordSignInAsync(user, loginModel.Password, false, true);
-
-                // Generate a 2FA token and send via email
-                var token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email");
-                var message = new Message(new string[] { user.Email! }, "2-Factor-Authentication OTP", token);
-                _emailService.SendEmail(message);
-
-                return StatusCode(StatusCodes.Status200OK, new Response { Status = "Success", Message = $"We have sent an OTP to your email {user.Email}" });
-            }
 
             // Create a claim list
             var authClaims = new List<Claim>
@@ -158,7 +161,8 @@ namespace User.Management.API.Controllers
             return Ok(new
             {
                 token = new JwtSecurityTokenHandler().WriteToken(jwtToken),
-                expiration = jwtToken.ValidTo
+                expiration = jwtToken.ValidTo,
+                message = loginOtpResponse.Message
             });
         }
 
