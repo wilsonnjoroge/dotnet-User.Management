@@ -1,9 +1,13 @@
 ﻿
 
+using Azure;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using User.Management.Service.Model;
 using User.Management.Service.Model.Authentication.User;
+using User.Management.Service.Models.Authentication.Login;
 using User.Management.Service.Models.Authentication.SignUp;
 
 namespace User.Management.Service.Services
@@ -50,7 +54,7 @@ namespace User.Management.Service.Services
             };
         }
 
-       
+
 
 
         // Parse the class user response as the return type
@@ -61,10 +65,11 @@ namespace User.Management.Service.Services
             var userExist = await _userManager.FindByEmailAsync(registerUser.Email);
             if (userExist != null)
             {
-                return new ApiResponse<CreateUserResponse> { 
-                    IsSuccess = false, 
-                    StatusCode = 403, 
-                    Message = "User already exists" 
+                return new ApiResponse<CreateUserResponse>
+                {
+                    IsSuccess = false,
+                    StatusCode = 403,
+                    Message = "User already exists"
                 };
             }
 
@@ -95,7 +100,8 @@ namespace User.Management.Service.Services
                     }
                 };
 
-            } else
+            }
+            else
             {
                 return new ApiResponse<CreateUserResponse>
                 {
@@ -106,5 +112,79 @@ namespace User.Management.Service.Services
             }
 
         }
+
+        public async Task<ApiResponse<LogInOtpResponse>> GetOtpByLoginAsync(LoginModel loginModel)
+        {
+            // Check if user exists
+            var user = await _userManager.FindByNameAsync(loginModel.Username);
+            if (user == null)
+            {
+                return new ApiResponse<LogInOtpResponse>
+                {
+                    IsSuccess = false,
+                    StatusCode = 404,
+                    Message = "User does not exist"
+                };
+            }
+
+            // Sign out any existing sessions
+            await _signInManager.SignOutAsync();
+
+            // Attempt to sign in the user with the provided password
+            var signInResult = await _signInManager.PasswordSignInAsync(user, loginModel.Password, false, true);
+            if (signInResult.IsLockedOut)
+            {
+                return new ApiResponse<LogInOtpResponse>
+                {
+                    IsSuccess = false,
+                    StatusCode = 423,
+                    Message = "User account is locked."
+                };
+            }
+            if (!signInResult.Succeeded)
+            {
+                return new ApiResponse<LogInOtpResponse>
+                {
+                    IsSuccess = false,
+                    StatusCode = 401,
+                    Message = "Invalid login attempt",
+                };
+            }
+
+            // Check if 2FA is enabled
+            if (!user.TwoFactorEnabled)
+            {
+                return new ApiResponse<LogInOtpResponse>
+                {
+                    Response = new LogInOtpResponse
+                    {
+                        User = user,
+                        Token = string.Empty,
+                        IsTwoFacorEnabled = false
+                    },
+                    IsSuccess = true,
+                    StatusCode = 200,
+                    Message = "2-Factor-Authenticator is not enabled"
+                };
+            }
+
+            // Generate a 2FA token and send it via email
+            var token = await _userManager.GenerateTwoFactorTokenAsync(user, "Email");
+
+            return new ApiResponse<LogInOtpResponse>
+            {
+                Response = new LogInOtpResponse
+                {
+                    User = user,
+                    Token = token,
+                    IsTwoFacorEnabled = true
+                },
+                IsSuccess = true,
+                StatusCode = 200,
+                Message = $"OTP sent to email. Kindly check {user.Email}"
+            };
+        }
+
     }
 }
+
