@@ -26,6 +26,9 @@ builder.Services.Configure<IdentityOptions>(
     opts => opts.SignIn.RequireConfirmedEmail = true
     );
 
+// managing the validity period of tokens used for purposes like password resets or 2FA. 
+builder.Services.Configure< DataProtectionTokenProviderOptions > (opts => opts.TokenLifespan = TimeSpan.FromHours(10));
+
 // Adding Authentication
 builder.Services.AddAuthentication(options =>
 {
