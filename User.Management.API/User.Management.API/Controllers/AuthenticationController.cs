@@ -17,6 +17,7 @@ using User.Management.Service.Models.Authentication.PasswordManagement;
 using User.Management.Service.Models.Authentication.SignUp;
 using User.Management.Service.Services;
 using System.CodeDom.Compiler;
+using User.Management.Service.Model.Authentication.User;
 
 namespace User.Management.API.Controllers
 {
@@ -47,28 +48,48 @@ namespace User.Management.API.Controllers
         [HttpPost]
         public async Task<IActionResult> Register([FromBody] RegisterUser registerUser)
         {
-
-            // Generate a token for email verification
+            // Generate a token for email verification by creating a new user
             var tokenResponse = await _user.CreateUserWithTokenAsync(registerUser);
 
+            // Check if user creation and token generation was successful
             if (tokenResponse.IsSuccess)
             {
-                // Assign role
-                await _user.AssignRoleToUserAsync(registerUser.Roles, tokenResponse.Response.User);
+                // Assign roles to the newly created user
+                var roleAssignmentResponse = await _user.AssignRoleToUserAsync(registerUser.Roles, tokenResponse.Response.User);
 
-                var confirmationLink = Url.Action(nameof(ConfirmEmail), "Authentication", new { tokenResponse.Response.Token, email = registerUser.Email }, Request.Scheme);
+                // Check if the role assignment was successful or partially successful
+                if (!roleAssignmentResponse.IsSuccess)
+                {
+                    // If the role assignment failed, delete the user
+                    await _userManager.DeleteAsync(tokenResponse.Response.User);
+
+                    // Return an error response with the message from the role assignment
+                    return StatusCode(roleAssignmentResponse.StatusCode,
+                        new Response { Status = "Error", Message = roleAssignmentResponse.Message });
+                }
+
+                // Generate a confirmation link for email verification
+                var confirmationLink = Url.Action(
+                    nameof(ConfirmEmail),
+                    "Authentication",
+                    new { token = tokenResponse.Response.Token, email = registerUser.Email },
+                    Request.Scheme
+                );
+
+                // Create an email message with the confirmation link
                 var message = new Message(new string[] { registerUser.Email! }, "Email Confirmation link", confirmationLink!);
+
+                // Send the confirmation email
                 _emailService.SendEmail(message);
 
+                // Return a success status with a message indicating the email was sent
                 return StatusCode(StatusCodes.Status200OK,
-                        new Response { Status = "Success", Message = $"Confirmation email sent successfully to {registerUser.Email}" });
-
+                    new Response { Status = "Success", Message = $"Confirmation email sent successfully to {registerUser.Email}" });
             }
 
+            // If user creation or token generation failed, return an internal server error status with the error message
             return StatusCode(StatusCodes.Status500InternalServerError,
-                       new Response { Message = tokenResponse.Message, IsSuccess = false });
-
-
+                new Response { Message = tokenResponse.Message, IsSuccess = false });
         }
 
 
@@ -107,64 +128,61 @@ namespace User.Management.API.Controllers
         [HttpPost("Login")]
         public async Task<IActionResult> Login([FromBody] LoginModel loginModel)
         {
-            // Call the method to get OTP by login
+            // Retrieve the user from the response
             var loginOtpResponse = await _user.GetOtpByLoginAsync(loginModel);
 
-            if (loginOtpResponse == null || !loginOtpResponse.IsSuccess)
+            if (loginOtpResponse.Response != null)
             {
-                // Handle the case where response is null or not successful
-                // ? -> if response is null, ?? -> Automatically assigns code 500 and ? -> if message is null, ?? -> assigns message to "An error occurred." 
-                return StatusCode(loginOtpResponse?.StatusCode ?? 500, 
-                        loginOtpResponse?.Message ?? "An error occurred.");
+                var user = loginOtpResponse.Response.User;
+                
+                if (user.TwoFactorEnabled)
+                {
+                    var token = loginOtpResponse.Response.Token;
+                    // Create a message with the 2FA token and send it via email
+                    var message = new Message(new string[] { user.Email! }, "2-Factor-Authentication Email", token);
+                    _emailService.SendEmail(message);
+
+                    // Return a success status indicating that the 2FA OTP has been sent
+                    return StatusCode(StatusCodes.Status200OK,
+                                      new Response {IsSuccess = loginOtpResponse.IsSuccess, Status = "Success",
+                                          Message = $"A 2-Factor-Authentication OTP has been sent to your email {user.Email}"}
+                                      );
+
+                }
+
+                // Check if the provided password is valid
+                var validPassword = await _userManager.CheckPasswordAsync(user, loginModel.Password);
+                if (user != null && validPassword)
+                {
+                    // Create a list of claims for the JWT token
+                    var authClaims = new List<Claim>
+                     {
+                         new Claim(ClaimTypes.Name, loginModel.Username),
+                         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                     };
+
+                    // Retrieve the user's roles and add them to the claims list
+                    var userRoles = await _userManager.GetRolesAsync(user);
+                    foreach (var role in userRoles)
+                    {
+                        authClaims.Add(new Claim(ClaimTypes.Role, role));
+                    }
+
+                    // Generate the JWT token with the claims
+                    var jwtToken = GetToken(authClaims);
+
+                    // Return the JWT token and its expiration time
+                    return Ok(new
+                    {
+                        token = new JwtSecurityTokenHandler().WriteToken(jwtToken),
+                        expiration = jwtToken.ValidTo,
+                    });
+                }
             }
 
-            // Check if user exists
-            var user = loginOtpResponse.Response.User;
-
-            if (user.TwoFactorEnabled)
-            {
-                var token = loginOtpResponse.Response.Token;
-
-                var message = new Message(new string[] { user.Email! }, "2-Factor-Authentication Email", token);
-                _emailService.SendEmail(message);
-
-                return StatusCode(StatusCodes.Status200OK,
-                        new Response { IsSuccess = loginOtpResponse.IsSuccess, Status = "Success", Message = $"A 2-Factor-Authentication OTP has been sent to your email {user.Email}" });
-            }
-
-            // Check if password is valid
-            var validPassword = await _userManager.CheckPasswordAsync(user, loginModel.Password);
-            if (!validPassword)
-            {
-                return Unauthorized("Wrong Password!!");
-            }
-
-
-            // Create a claim list
-            var authClaims = new List<Claim>
-            {
-                new Claim(ClaimTypes.Name, loginModel.Username),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
-
-            // Add roles to the claims list
-            var userRoles = await _userManager.GetRolesAsync(user);
-            foreach (var role in userRoles)
-            {
-                authClaims.Add(new Claim(ClaimTypes.Role, role));
-            }
-
-            // Generate the JWT token with claims
-            var jwtToken = GetToken(authClaims);
-
-            // Return the token
-            return Ok(new
-            {
-                token = new JwtSecurityTokenHandler().WriteToken(jwtToken),
-                expiration = jwtToken.ValidTo,
-                message = loginOtpResponse.Message
-            });
+            return Unauthorized();
         }
+
 
 
         [HttpPost("Login-2-Factor-Authentication")]
