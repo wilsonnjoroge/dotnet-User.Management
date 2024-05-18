@@ -5,15 +5,15 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using User.Management.API.Models;
+using User.Management.Data.Models;
 
 #nullable disable
 
-namespace User.Management.API.Migrations
+namespace User.Management.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20240516081217_Initial")]
-    partial class Initial
+    [Migration("20240518121443_initial")]
+    partial class initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -54,21 +54,21 @@ namespace User.Management.API.Migrations
                     b.HasData(
                         new
                         {
-                            Id = "972ced24-2e49-43ae-bad7-e13806108de3",
+                            Id = "9a72009d-cea8-4186-a1f9-6207705efa8b",
                             ConcurrencyStamp = "1",
                             Name = "Admin",
                             NormalizedName = "Admin"
                         },
                         new
                         {
-                            Id = "908919ac-de66-4712-9a9e-098f0b8c191d",
+                            Id = "d03b46d4-2d19-433e-94f3-5bea4972a6de",
                             ConcurrencyStamp = "2",
                             Name = "User",
                             NormalizedName = "User"
                         },
                         new
                         {
-                            Id = "3bb77e4e-081a-4969-96d0-5a1b72d5f115",
+                            Id = "71eaa323-1ce7-4012-9810-1f058bcdc5f8",
                             ConcurrencyStamp = "3",
                             Name = "HR",
                             NormalizedName = "HR"
