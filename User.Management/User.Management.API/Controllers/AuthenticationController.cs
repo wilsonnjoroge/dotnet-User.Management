@@ -1,6 +1,5 @@
 ﻿
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -12,12 +11,8 @@ using User.Management.Service.Models.Authentication.Login;
 using User.Management.Service.Models.Authentication.PasswordManagement;
 using User.Management.Service.Models.Authentication.SignUp;
 using User.Management.Service.Model;
-using User.Management.Service.Models.Authentication.Login;
-using User.Management.Service.Models.Authentication.PasswordManagement;
-using User.Management.Service.Models.Authentication.SignUp;
 using User.Management.Service.Services;
-using System.CodeDom.Compiler;
-using User.Management.Service.Model.Authentication.User;
+using User.Management.Data.Models;
 
 namespace User.Management.API.Controllers
 {
@@ -26,13 +21,13 @@ namespace User.Management.API.Controllers
     [ApiController]
     public class AuthenticationController : ControllerBase
     {
-        private readonly UserManager<IdentityUser> _userManager;
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
-        private readonly SignInManager<IdentityUser> _signInManager;
+        private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IUserManagement _user;
-        public AuthenticationController(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager, 
+        public AuthenticationController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, 
             RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService,
             IUserManagement user)
         {
@@ -134,54 +129,53 @@ namespace User.Management.API.Controllers
             if (loginOtpResponse.Response != null)
             {
                 var user = loginOtpResponse.Response.User;
-                
-                if (user.TwoFactorEnabled)
+
+                if (loginOtpResponse.Response.IsTwoFacorEnabled)
                 {
                     var token = loginOtpResponse.Response.Token;
                     // Create a message with the 2FA token and send it via email
-                    var message = new Message(new string[] { user.Email! }, "2-Factor-Authentication Email", token);
+                    var message = new Message(new string[] { user.Email! }, "2-Factor-Authentication OTP", token);
                     _emailService.SendEmail(message);
 
                     // Return a success status indicating that the 2FA OTP has been sent
                     return StatusCode(StatusCodes.Status200OK,
-                                      new Response {IsSuccess = loginOtpResponse.IsSuccess, Status = "Success",
-                                          Message = $"A 2-Factor-Authentication OTP has been sent to your email {user.Email}"}
+                                      new Response
+                                      {
+                                          IsSuccess = loginOtpResponse.IsSuccess,
+                                          Status = "Success",
+                                          Message = $"A 2-Factor-Authentication OTP has been sent to your email {user.Email}"
+                                      }
                                       );
-
                 }
 
-                // Check if the provided password is valid
-                var validPassword = await _userManager.CheckPasswordAsync(user, loginModel.Password);
-                if (user != null && validPassword)
+                // Create a list of claims for the JWT token
+                var authClaims = new List<Claim>
+        {
+            new Claim(ClaimTypes.Name, loginModel.Username),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+                // Retrieve the user's roles and add them to the claims list
+                var userRoles = await _userManager.GetRolesAsync(user);
+                foreach (var role in userRoles)
                 {
-                    // Create a list of claims for the JWT token
-                    var authClaims = new List<Claim>
-                     {
-                         new Claim(ClaimTypes.Name, loginModel.Username),
-                         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-                     };
-
-                    // Retrieve the user's roles and add them to the claims list
-                    var userRoles = await _userManager.GetRolesAsync(user);
-                    foreach (var role in userRoles)
-                    {
-                        authClaims.Add(new Claim(ClaimTypes.Role, role));
-                    }
-
-                    // Generate the JWT token with the claims
-                    var jwtToken = GetToken(authClaims);
-
-                    // Return the JWT token and its expiration time
-                    return Ok(new
-                    {
-                        token = new JwtSecurityTokenHandler().WriteToken(jwtToken),
-                        expiration = jwtToken.ValidTo,
-                    });
+                    authClaims.Add(new Claim(ClaimTypes.Role, role));
                 }
+
+                // Generate the JWT token with the claims
+                var jwtToken = GetToken(authClaims);
+
+                // Return the JWT token and its expiration time
+                return Ok(new
+                {
+                    token = new JwtSecurityTokenHandler().WriteToken(jwtToken),
+                    expiration = jwtToken.ValidTo,
+                });
             }
 
             return Unauthorized();
         }
+
 
 
 
@@ -314,19 +308,24 @@ namespace User.Management.API.Controllers
 
         private JwtSecurityToken GetToken(List<Claim> authClaims)
         {
-            var authSingingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
+            // Corrected variable name
+            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
+
+            // Convert the value in appsettings to int
+            var tokenValidityInMinutes = int.Parse(_configuration["JWT:TokenValidityInMinutes"]);
 
             var token = new JwtSecurityToken(
                 issuer: _configuration["JWT:ValidIssuer"],
                 audience: _configuration["JWT:ValidAudience"],
                 claims: authClaims,
-                expires: DateTime.UtcNow.AddHours(1),
-                signingCredentials: new SigningCredentials(authSingingKey, SecurityAlgorithms.HmacSha256)
-                );
+                expires: DateTime.Now.AddMinutes(tokenValidityInMinutes), // Local time zone is implied
+                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
+            );
 
             return token;
         }
-        
 
-        }
+
+
+    }
 }

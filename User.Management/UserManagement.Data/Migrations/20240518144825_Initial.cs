@@ -8,18 +8,32 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace User.Management.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class initial : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            
+            migrationBuilder.CreateTable(
+                name: "AspNetRoles",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    NormalizedName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AspNetRoles", x => x.Id);
+                });
 
             migrationBuilder.CreateTable(
                 name: "AspNetUsers",
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    RefreshToken = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RefreshTokenExpiry = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
@@ -151,9 +165,9 @@ namespace User.Management.Data.Migrations
                 columns: new[] { "Id", "ConcurrencyStamp", "Name", "NormalizedName" },
                 values: new object[,]
                 {
-                    { "71eaa323-1ce7-4012-9810-1f058bcdc5f8", "3", "HR", "HR" },
-                    { "9a72009d-cea8-4186-a1f9-6207705efa8b", "1", "Admin", "Admin" },
-                    { "d03b46d4-2d19-433e-94f3-5bea4972a6de", "2", "User", "User" }
+                    { "8eb5dfb9-094e-47ba-8724-c94ca277e843", "1", "Admin", "Admin" },
+                    { "acf0fb75-2225-4448-bf67-7a138f51601b", "3", "HR", "HR" },
+                    { "d0faf31e-2e17-4160-ad36-b0d5009c11c2", "2", "User", "User" }
                 });
 
             migrationBuilder.CreateIndex(
