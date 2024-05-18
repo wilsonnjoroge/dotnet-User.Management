@@ -1,6 +1,7 @@
 ﻿
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
+using User.Management.Data.Models;
 using User.Management.Service.Model;
 using User.Management.Service.Model.Authentication.User;
 using User.Management.Service.Models.Authentication.Login;
@@ -12,17 +13,17 @@ namespace User.Management.Service.Services
     public class UserManagement : IUserManagement
     {
 
-        private readonly UserManager<IdentityUser> _userManager;
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
-        private readonly SignInManager<IdentityUser> _signInManager;
-        public UserManagement(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService)
+        private readonly SignInManager<ApplicationUser> _signInManager;
+        public UserManagement(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _signInManager = signInManager;
         }
 
-        public async Task<ApiResponse<List<string>>> AssignRoleToUserAsync(List<string> roles, IdentityUser user)
+        public async Task<ApiResponse<List<string>>> AssignRoleToUserAsync(List<string> roles, ApplicationUser user)
         {
             // Ensure the roles list and user are not null
             if (roles == null || user == null)
@@ -130,7 +131,7 @@ namespace User.Management.Service.Services
             }
 
             // If the user does not exist, add to DB
-            var user = new IdentityUser
+            var user = new ApplicationUser
             {
                 Email = registerUser.Email,
                 SecurityStamp = Guid.NewGuid().ToString(),

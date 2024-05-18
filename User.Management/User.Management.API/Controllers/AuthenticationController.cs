@@ -1,6 +1,5 @@
 ﻿
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -12,12 +11,8 @@ using User.Management.Service.Models.Authentication.Login;
 using User.Management.Service.Models.Authentication.PasswordManagement;
 using User.Management.Service.Models.Authentication.SignUp;
 using User.Management.Service.Model;
-using User.Management.Service.Models.Authentication.Login;
-using User.Management.Service.Models.Authentication.PasswordManagement;
-using User.Management.Service.Models.Authentication.SignUp;
 using User.Management.Service.Services;
-using System.CodeDom.Compiler;
-using User.Management.Service.Model.Authentication.User;
+using User.Management.Data.Models;
 
 namespace User.Management.API.Controllers
 {
@@ -26,13 +21,13 @@ namespace User.Management.API.Controllers
     [ApiController]
     public class AuthenticationController : ControllerBase
     {
-        private readonly UserManager<IdentityUser> _userManager;
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
-        private readonly SignInManager<IdentityUser> _signInManager;
+        private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IUserManagement _user;
-        public AuthenticationController(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager, 
+        public AuthenticationController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, 
             RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService,
             IUserManagement user)
         {
