@@ -176,11 +176,20 @@ namespace User.Management.Service.Services
 
             if (user != null)
             {
+                // Attempt to sign in the user with the provided password
+                var validPassword = await _userManager.CheckPasswordAsync(user, loginModel.Password);
+                if (!validPassword)
+                {
+                    return new ApiResponse<LogInOtpResponse>
+                    {
+                        IsSuccess = false,
+                        StatusCode = 401,
+                        Message = "Invalid Password!"
+                    };
+                }
+
                 // Sign out any existing sessions
                 await _signInManager.SignOutAsync();
-
-                // Attempt to sign in the user with the provided password
-                var signInResult = await _signInManager.PasswordSignInAsync(user, loginModel.Password, false, true);
 
                 // Check if 2FA is enabled
                 if (user.TwoFactorEnabled)
@@ -227,6 +236,7 @@ namespace User.Management.Service.Services
                 };
             }
         }
+
 
 
 
