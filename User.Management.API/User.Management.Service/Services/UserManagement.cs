@@ -1,8 +1,4 @@
 ﻿
-
-using Azure;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using User.Management.Service.Model;
