@@ -1,6 +1,11 @@
 ﻿
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using User.Management.Data.Models;
 using User.Management.Service.Model;
 using User.Management.Service.Model.Authentication.User;
@@ -16,11 +21,13 @@ namespace User.Management.Service.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly IConfiguration _configuration;
         public UserManagement(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _signInManager = signInManager;
+            _configuration = configuration;
         }
 
         public async Task<ApiResponse<List<string>>> AssignRoleToUserAsync(List<string> roles, ApplicationUser user)
@@ -136,7 +143,7 @@ namespace User.Management.Service.Services
                 Email = registerUser.Email,
                 SecurityStamp = Guid.NewGuid().ToString(),
                 UserName = registerUser.Username,
-                TwoFactorEnabled = true
+                TwoFactorEnabled = false
             };
 
             var result = await _userManager.CreateAsync(user, registerUser.Password);
@@ -237,6 +244,27 @@ namespace User.Management.Service.Services
             }
         }
 
+        // Implementing the base class defined in user mgt interface for generating token
+        JwtSecurityToken IUserManagement.GetToken(List<Claim> authClaims)
+        {
+            // Corrected variable name
+            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
+
+            // Convert the value in appsettings to int
+            var tokenValidityInMinutes = int.Parse(_configuration["JWT:TokenValidityInMinutes"]);
+
+            var token = new JwtSecurityToken(
+                issuer: _configuration["JWT:ValidIssuer"],
+                audience: _configuration["JWT:ValidAudience"],
+                claims: authClaims,
+                expires: DateTime.Now.AddMinutes(tokenValidityInMinutes), // Local time zone is implied
+                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
+            );
+
+            return token;
+        }
+
+       
 
 
 

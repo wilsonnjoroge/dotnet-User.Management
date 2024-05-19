@@ -6,7 +6,9 @@ namespace User.Management.Service.Model.Authentication.User
 {
     public class LogInOtpResponse
     {
-        public string Token { get; set; } = null!;
+        public string Token { get; set; }
+        public TokenType AccessToken { get; set; }
+        public TokenType RefreshToken { get; set; }
         public bool IsTwoFacorEnabled { get; set; }
         public ApplicationUser User { get; set; } = null!;
     }

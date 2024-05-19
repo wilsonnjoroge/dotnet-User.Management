@@ -13,6 +13,8 @@ using User.Management.Service.Models.Authentication.SignUp;
 using User.Management.Service.Model;
 using User.Management.Service.Services;
 using User.Management.Data.Models;
+using System.Security.Cryptography;
+using Azure.Core;
 
 namespace User.Management.API.Controllers
 {
@@ -23,10 +25,10 @@ namespace User.Management.API.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
-        private readonly IConfiguration _configuration;
         private readonly IEmailService _emailService;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IUserManagement _user;
+        private readonly IConfiguration _configuration;
         public AuthenticationController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, 
             RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService,
             IUserManagement user)
@@ -40,7 +42,7 @@ namespace User.Management.API.Controllers
         }
 
         
-        [HttpPost]
+        [HttpPost("Register")]
         public async Task<IActionResult> Register([FromBody] RegisterUser registerUser)
         {
             // Generate a token for email verification by creating a new user
@@ -132,28 +134,28 @@ namespace User.Management.API.Controllers
 
                 if (loginOtpResponse.Response.IsTwoFacorEnabled)
                 {
+
                     var token = loginOtpResponse.Response.Token;
+
                     // Create a message with the 2FA token and send it via email
                     var message = new Message(new string[] { user.Email! }, "2-Factor-Authentication OTP", token);
                     _emailService.SendEmail(message);
 
-                    // Return a success status indicating that the 2FA OTP has been sent
-                    return StatusCode(StatusCodes.Status200OK,
-                                      new Response
-                                      {
-                                          IsSuccess = loginOtpResponse.IsSuccess,
-                                          Status = "Success",
-                                          Message = $"A 2-Factor-Authentication OTP has been sent to your email {user.Email}"
-                                      }
-                                      );
+                    return Ok(new Response
+                    {
+                        IsSuccess = true,
+                        Status = "2FA",
+                        Message = $"A 2-Factor-Authentication OTP has been sent to your email {user.Email}"
+                    });
                 }
 
-                // Create a list of claims for the JWT token
+                // Generate and return the JWT token
+                
                 var authClaims = new List<Claim>
-        {
-            new Claim(ClaimTypes.Name, loginModel.Username),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
+                {
+                    new Claim(ClaimTypes.Name, user.UserName),
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                };
 
                 // Retrieve the user's roles and add them to the claims list
                 var userRoles = await _userManager.GetRolesAsync(user);
@@ -162,21 +164,31 @@ namespace User.Management.API.Controllers
                     authClaims.Add(new Claim(ClaimTypes.Role, role));
                 }
 
-                // Generate the JWT token with the claims
-                var jwtToken = GetToken(authClaims);
+                // Generate the JWT token with the claims and refresh token
+                var jwtToken = _user.GetToken(authClaims);
+                var refreshToken = GenerateRefreshToken();
+                _ = int.TryParse(_configuration["JWT:RefreshTokenValidity"], out int refreshTokenValidity);
+                var refreshTokenExpiry = DateTime.UtcNow.AddDays(refreshTokenValidity);
+
+                // Attach the token to user
+                user.RefreshToken = refreshToken;
+                user.RefreshTokenExpiry = refreshTokenExpiry;
+
+                // Update
+                await _userManager.UpdateAsync(user);
 
                 // Return the JWT token and its expiration time
                 return Ok(new
                 {
-                    token = new JwtSecurityTokenHandler().WriteToken(jwtToken),
-                    expiration = jwtToken.ValidTo,
+                    AccessToken = new JwtSecurityTokenHandler().WriteToken(jwtToken),
+                    AccessTokenExpiration = jwtToken.ValidTo,
+                    RefreshToken = refreshToken,
+                    RefreshTokenExpiration = refreshTokenExpiry
                 });
             }
 
             return Unauthorized();
         }
-
-
 
 
         [HttpPost("Login-2-Factor-Authentication")]
@@ -189,7 +201,7 @@ namespace User.Management.API.Controllers
                     new Response { Status = "Error", Message = "User not found" });
             }
 
-            var signInResult = await _signInManager.TwoFactorSignInAsync("Email", model.Code, false, false);
+            var signInResult = await _signInManager.TwoFactorSignInAsync("Email", model.Code, false, true);
 
             if (!signInResult.Succeeded)
             {
@@ -203,30 +215,14 @@ namespace User.Management.API.Controllers
                     new Response { Status = "Error", Message = "Invalid code" });
             }
 
-            // Create a claim list
-            var authClaims = new List<Claim>
+            return Ok(new Response
             {
-                new Claim(ClaimTypes.Name, user.UserName),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
-
-            // Add roles to the claims list
-            var userRoles = await _userManager.GetRolesAsync(user);
-            foreach (var role in userRoles)
-            {
-                authClaims.Add(new Claim(ClaimTypes.Role, role));
-            }
-
-            // Generate Token with claims
-            var jwtToken = GetToken(authClaims);
-
-            // Return the token
-            return Ok(new
-            {
-                token = new JwtSecurityTokenHandler().WriteToken(jwtToken),
-                expiration = jwtToken.ValidTo
+                IsSuccess = true,
+                Status = "Success",
+                Message = "OTP verified Successfully!"
             });
         }
+
 
 
         [HttpPost("forgot-password")]
@@ -304,28 +300,14 @@ namespace User.Management.API.Controllers
 
 
 
-
-
-        private JwtSecurityToken GetToken(List<Claim> authClaims)
+        private string GenerateRefreshToken()
         {
-            // Corrected variable name
-            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
+            var randomNumber = new Byte[350];
+            var range = RandomNumberGenerator.Create();
+            range.GetBytes(randomNumber);
 
-            // Convert the value in appsettings to int
-            var tokenValidityInMinutes = int.Parse(_configuration["JWT:TokenValidityInMinutes"]);
-
-            var token = new JwtSecurityToken(
-                issuer: _configuration["JWT:ValidIssuer"],
-                audience: _configuration["JWT:ValidAudience"],
-                claims: authClaims,
-                expires: DateTime.Now.AddMinutes(tokenValidityInMinutes), // Local time zone is implied
-                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
-            );
-
-            return token;
+            return Convert.ToBase64String(randomNumber);
         }
-
-
 
     }
 }
