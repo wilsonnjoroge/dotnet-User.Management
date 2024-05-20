@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using User.Management.Data.Models;
 
-namespace User.Management.Service.Model.Authentication.User
+namespace User.Management.Service.Responses
 {
     public class LogInOtpResponse
     {

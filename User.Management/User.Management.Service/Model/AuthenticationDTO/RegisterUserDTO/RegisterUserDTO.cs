@@ -1,8 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.AspNetCore.Identity;
+using System.ComponentModel.DataAnnotations;
 
 namespace User.Management.Service.Models.Authentication.SignUp
 {
-    public class RegisterUser
+    public class RegisterUserDTO
     {
         [Required(ErrorMessage = "User Name is required")]
         public string? Username { get; set; }

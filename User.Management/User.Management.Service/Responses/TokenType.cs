@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace User.Management.Service.Model.Authentication.User
+namespace User.Management.Service.Responses
 {
     public class TokenType
     {

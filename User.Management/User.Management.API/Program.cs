@@ -1,36 +1,31 @@
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
-using User.Management.API.Models;
 using User.Management.Data.Models;
-using User.Management.Service.Model;
-using User.Management.Service.Services;
+using User.Management.Service.Model.EmailConfig;
+using User.Management.Service.Services.Interfaces;
+using User.Management.Service.Services.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
-
-// For Entity Framework
+// Database Context Configuration
 var configuration = builder.Configuration;
-builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("ConnStr")));
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(configuration.GetConnectionString("ConnStr")));
 
-// For Identity
-builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+// Identity Configuration
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+{
+    options.SignIn.RequireConfirmedEmail = true;
+})
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
-//Add Config for Required Email
-builder.Services.Configure<IdentityOptions>(
-    opts => opts.SignIn.RequireConfirmedEmail = true
-    );
-
-// managing the validity period of tokens used for purposes like password resets or 2FA. 
-builder.Services.Configure< DataProtectionTokenProviderOptions > (opts => opts.TokenLifespan = TimeSpan.FromHours(10));
-
-// Adding Authentication
+// Authentication Configuration
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -53,18 +48,17 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-
-//Add Email Configs
+// Email Configuration
 var emailConfig = configuration.GetSection("EmailConfiguration").Get<EmailConfiguration>();
 builder.Services.AddSingleton(emailConfig);
-
 builder.Services.AddScoped<IEmailService, EmailService>();
 
-// Register User management Interfase and Clase
+// Dependency Injection
+builder.Services.AddScoped<IUserAuthentication, UserAuthentication>();
 builder.Services.AddScoped<IUserManagement, UserManagement>();
 
+// Controllers and Swagger Configuration
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(option =>
 {
@@ -85,16 +79,14 @@ builder.Services.AddSwaggerGen(option =>
             {
                 Reference = new OpenApiReference
                 {
-                    Type=ReferenceType.SecurityScheme,
-                    Id="Bearer"
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
                 }
             },
             new string[]{}
         }
     });
 });
-
-
 
 var app = builder.Build();
 

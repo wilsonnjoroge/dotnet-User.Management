@@ -2,21 +2,18 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
-using User.Management.API.Models;
 using User.Management.Service.Models.Authentication.Login;
 using User.Management.Service.Models.Authentication.PasswordManagement;
 using User.Management.Service.Models.Authentication.SignUp;
-using User.Management.Service.Model;
-using User.Management.Service.Services;
 using User.Management.Data.Models;
 using System.Security.Cryptography;
-using Azure.Core;
+using User.Management.Service.Services.Interfaces;
+using User.Management.Service.Model.MessageConfig;
+using User.Management.Service.Responses;
 
-namespace User.Management.API.Controllers
+namespace User.Management.API.Controllers.UserAuthentication
 {
     [AllowAnonymous]
     [Route("api/[controller]")]
@@ -27,11 +24,11 @@ namespace User.Management.API.Controllers
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IEmailService _emailService;
         private readonly SignInManager<ApplicationUser> _signInManager;
-        private readonly IUserManagement _user;
+        private readonly IUserAuthentication _user;
         private readonly IConfiguration _configuration;
-        public AuthenticationController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, 
+        public AuthenticationController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager,
             RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService,
-            IUserManagement user)
+            IUserAuthentication user)
         {
             _userManager = userManager;
             _roleManager = roleManager;
@@ -41,9 +38,9 @@ namespace User.Management.API.Controllers
             _user = user;
         }
 
-        
+
         [HttpPost("Register")]
-        public async Task<IActionResult> Register([FromBody] RegisterUser registerUser)
+        public async Task<IActionResult> Register([FromBody] RegisterUserDTO registerUser)
         {
             // Generate a token for email verification by creating a new user
             var tokenResponse = await _user.CreateUserWithTokenAsync(registerUser);
@@ -93,7 +90,7 @@ namespace User.Management.API.Controllers
         [HttpGet("ConfirmEmail")]
         public async Task<IActionResult> ConfirmEmail(string token, string email)
 
-            // Comment
+        // Comment
         {
             try
             {
@@ -118,12 +115,12 @@ namespace User.Management.API.Controllers
                 throw;
             }
 
-            
+
 
         }
 
         [HttpPost("Login")]
-        public async Task<IActionResult> Login([FromBody] LoginModel loginModel)
+        public async Task<IActionResult> Login([FromBody] LoginModelDTO loginModel)
         {
             // Retrieve the user from the response
             var loginOtpResponse = await _user.GetOtpByLoginAsync(loginModel);
@@ -150,7 +147,7 @@ namespace User.Management.API.Controllers
                 }
 
                 // Generate and return the JWT token
-                
+
                 var authClaims = new List<Claim>
                 {
                     new Claim(ClaimTypes.Name, user.UserName),
@@ -190,9 +187,8 @@ namespace User.Management.API.Controllers
             return Unauthorized();
         }
 
-
         [HttpPost("Login-2-Factor-Authentication")]
-        public async Task<IActionResult> LoginWith2FA([FromBody] Login2FAModel model)
+        public async Task<IActionResult> LoginWith2FA([FromBody] Login2FAModelDTO model)
         {
             var user = await _userManager.FindByNameAsync(model.Username);
             if (user == null)
@@ -232,13 +228,13 @@ namespace User.Management.API.Controllers
             var user = await _userManager.FindByEmailAsync(email);
 
             //Check if user if registered in the DB
-            if(user == null)
+            if (user == null)
             {
                 return StatusCode(StatusCodes.Status404NotFound,
                     new Response { Status = "Error", Message = "User Not Found!" });
             }
 
-            if(user != null)
+            if (user != null)
             {
                 var token = await _userManager.GeneratePasswordResetTokenAsync(user);
                 var forgotPasswordLink = Url.Action(nameof(ResetPassword), "Authentication", new { token, email = user.Email }, Request.Scheme);
@@ -258,7 +254,7 @@ namespace User.Management.API.Controllers
         [HttpGet("reset-password")]
         public async Task<IActionResult> ResetPassword(string token, string email)
         {
-            var model = new ResetPassword { Email = email, Token = token };
+            var model = new ResetPasswordDTO { Email = email, Token = token };
 
             return Ok(new { model });
         }
@@ -267,7 +263,7 @@ namespace User.Management.API.Controllers
 
         [HttpPost("reset-password")]
         [AllowAnonymous]
-        public async Task<IActionResult> ResetPassword([FromBody] ResetPassword resetPassword)
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDTO resetPassword)
         {
             var user = await _userManager.FindByEmailAsync(resetPassword.Email);
 
@@ -302,12 +298,15 @@ namespace User.Management.API.Controllers
 
         private string GenerateRefreshToken()
         {
-            var randomNumber = new Byte[350];
+            var randomNumber = new byte[350];
             var range = RandomNumberGenerator.Create();
             range.GetBytes(randomNumber);
 
             return Convert.ToBase64String(randomNumber);
         }
+
+
+       
 
     }
 }

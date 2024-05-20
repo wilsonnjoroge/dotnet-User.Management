@@ -2,7 +2,7 @@
 
 using MimeKit;
 
-namespace User.Management.Service.Model
+namespace User.Management.Service.Model.MessageConfig
 {
     public class Message
     {

@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace User.Management.Service.Model.Authentication.User
+namespace User.Management.Service.Responses
 {
-    internal class LoginResponse
+    public class LoginResponse
     {
         public TokenType AccessToken { get; set; }
         public TokenType RefreshToken { get; set; }

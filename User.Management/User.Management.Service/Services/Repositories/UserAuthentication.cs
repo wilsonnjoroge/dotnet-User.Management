@@ -1,5 +1,6 @@
 ﻿
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -7,22 +8,23 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using User.Management.Data.Models;
-using User.Management.Service.Model;
-using User.Management.Service.Model.Authentication.User;
 using User.Management.Service.Models.Authentication.Login;
 using User.Management.Service.Models.Authentication.SignUp;
+using User.Management.Service.Responses;
+using User.Management.Service.Services.Interfaces;
 
-namespace User.Management.Service.Services
+namespace User.Management.Service.Services.Repositories
 {
     // Implements user management interface
-    public class UserManagement : IUserManagement
+    public class UserAuthentication : IUserAuthentication
     {
 
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IConfiguration _configuration;
-        public UserManagement(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService)
+        public UserAuthentication(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, 
+            RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
@@ -118,7 +120,7 @@ namespace User.Management.Service.Services
 
 
         // Parse the class user response as the return type
-        public async Task<ApiResponse<CreateUserResponse>> CreateUserWithTokenAsync(RegisterUser registerUser)
+        public async Task<ApiResponse<CreateUserResponse>> CreateUserWithTokenAsync(RegisterUserDTO registerUser)
         {
             if (registerUser == null)
             {
@@ -176,7 +178,7 @@ namespace User.Management.Service.Services
         }
 
 
-        public async Task<ApiResponse<LogInOtpResponse>> GetOtpByLoginAsync(LoginModel loginModel)
+        public async Task<ApiResponse<LogInOtpResponse>> GetOtpByLoginAsync(LoginModelDTO loginModel)
         {
             // Check if user exists
             var user = await _userManager.FindByNameAsync(loginModel.Username);
@@ -245,7 +247,7 @@ namespace User.Management.Service.Services
         }
 
         // Implementing the base class defined in user mgt interface for generating token
-        JwtSecurityToken IUserManagement.GetToken(List<Claim> authClaims)
+        JwtSecurityToken IUserAuthentication.GetToken(List<Claim> authClaims)
         {
             // Corrected variable name
             var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
@@ -263,9 +265,6 @@ namespace User.Management.Service.Services
 
             return token;
         }
-
-       
-
 
 
     }

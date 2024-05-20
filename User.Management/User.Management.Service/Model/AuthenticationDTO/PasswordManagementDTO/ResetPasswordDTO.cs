@@ -2,7 +2,7 @@
 
 namespace User.Management.Service.Models.Authentication.PasswordManagement
 {
-    public class ResetPassword
+    public class ResetPasswordDTO
     {
         [Required]
         public string? Password { get; set; }

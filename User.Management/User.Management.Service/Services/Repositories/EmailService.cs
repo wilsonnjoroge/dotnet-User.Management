@@ -1,9 +1,11 @@
 ﻿using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
-using User.Management.Service.Model;
+using User.Management.Service.Model.EmailConfig;
+using User.Management.Service.Model.MessageConfig;
+using User.Management.Service.Services.Interfaces;
 
-namespace User.Management.Service.Services
+namespace User.Management.Service.Services.Repositories
 {
     public class EmailService : IEmailService
     {

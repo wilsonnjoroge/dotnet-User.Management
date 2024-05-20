@@ -1,4 +1,4 @@
-﻿namespace User.Management.API.Models
+﻿namespace User.Management.Service.Responses
 {
     public class Response
     {
