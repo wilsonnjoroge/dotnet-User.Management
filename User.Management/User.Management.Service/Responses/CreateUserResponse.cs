@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using User.Management.Data.Models;
 
-namespace User.Management.Service.Model.Authentication.User
+namespace User.Management.Service.Responses
 {
     // Blueprint for the response after creating a user token (Registering)
     public class CreateUserResponse

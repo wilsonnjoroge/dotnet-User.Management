@@ -1,26 +1,35 @@
 ﻿
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using User.Management.Data.Models;
-using User.Management.Service.Model;
-using User.Management.Service.Model.Authentication.User;
 using User.Management.Service.Models.Authentication.Login;
 using User.Management.Service.Models.Authentication.SignUp;
+using User.Management.Service.Responses;
+using User.Management.Service.Services.Interfaces;
 
-namespace User.Management.Service.Services
+namespace User.Management.Service.Services.Repositories
 {
     // Implements user management interface
-    public class UserManagement : IUserManagement
+    public class UserAuthentication : IUserAuthentication
     {
 
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
-        public UserManagement(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService)
+        private readonly IConfiguration _configuration;
+        public UserAuthentication(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, 
+            RoleManager<IdentityRole> roleManager, IConfiguration configuration, IEmailService emailService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _signInManager = signInManager;
+            _configuration = configuration;
         }
 
         public async Task<ApiResponse<List<string>>> AssignRoleToUserAsync(List<string> roles, ApplicationUser user)
@@ -111,7 +120,7 @@ namespace User.Management.Service.Services
 
 
         // Parse the class user response as the return type
-        public async Task<ApiResponse<CreateUserResponse>> CreateUserWithTokenAsync(RegisterUser registerUser)
+        public async Task<ApiResponse<CreateUserResponse>> CreateUserWithTokenAsync(RegisterUserDTO registerUser)
         {
             if (registerUser == null)
             {
@@ -136,7 +145,7 @@ namespace User.Management.Service.Services
                 Email = registerUser.Email,
                 SecurityStamp = Guid.NewGuid().ToString(),
                 UserName = registerUser.Username,
-                TwoFactorEnabled = true
+                TwoFactorEnabled = false
             };
 
             var result = await _userManager.CreateAsync(user, registerUser.Password);
@@ -169,7 +178,7 @@ namespace User.Management.Service.Services
         }
 
 
-        public async Task<ApiResponse<LogInOtpResponse>> GetOtpByLoginAsync(LoginModel loginModel)
+        public async Task<ApiResponse<LogInOtpResponse>> GetOtpByLoginAsync(LoginModelDTO loginModel)
         {
             // Check if user exists
             var user = await _userManager.FindByNameAsync(loginModel.Username);
@@ -237,7 +246,25 @@ namespace User.Management.Service.Services
             }
         }
 
+        // Implementing the base class defined in user mgt interface for generating token
+        JwtSecurityToken IUserAuthentication.GetToken(List<Claim> authClaims)
+        {
+            // Corrected variable name
+            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
 
+            // Convert the value in appsettings to int
+            var tokenValidityInMinutes = int.Parse(_configuration["JWT:TokenValidityInMinutes"]);
+
+            var token = new JwtSecurityToken(
+                issuer: _configuration["JWT:ValidIssuer"],
+                audience: _configuration["JWT:ValidAudience"],
+                claims: authClaims,
+                expires: DateTime.Now.AddMinutes(tokenValidityInMinutes), // Local time zone is implied
+                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
+            );
+
+            return token;
+        }
 
 
     }

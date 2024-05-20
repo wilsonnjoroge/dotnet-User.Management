@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
+﻿
+
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace User.Management.API.Controllers
+namespace User.Management.API.Controllers.UserAuthentication
 {
     [Authorize(Roles = "Admin")]
     [Route("api/[controller]")]

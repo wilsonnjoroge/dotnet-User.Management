@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace User.Management.Service.Model
+namespace User.Management.Service.Responses
 {
     //Created a generic class. Implemented in the Interface
     public class ApiResponse<T>
